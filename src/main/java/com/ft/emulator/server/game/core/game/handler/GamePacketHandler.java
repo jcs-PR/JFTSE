@@ -38,6 +38,8 @@ import com.ft.emulator.server.game.core.packet.packets.home.S2CHomeItemsLoadAnsw
 import com.ft.emulator.server.game.core.packet.packets.inventory.*;
 import com.ft.emulator.server.game.core.packet.packets.lobby.C2SLobbyUserListRequestPacket;
 import com.ft.emulator.server.game.core.packet.packets.lobby.S2CLobbyUserListAnswerPacket;
+import com.ft.emulator.server.game.core.packet.packets.lottery.C2SOpenGachaReqPacket;
+import com.ft.emulator.server.game.core.packet.packets.lottery.S2COpenGachaAnswerPacket;
 import com.ft.emulator.server.game.core.packet.packets.player.C2SPlayerStatusPointChangePacket;
 import com.ft.emulator.server.game.core.packet.packets.player.S2CPlayerLevelExpPacket;
 import com.ft.emulator.server.game.core.packet.packets.player.S2CPlayerStatusPointChangePacket;
@@ -77,6 +79,7 @@ public class GamePacketHandler {
     private final ChallengeService challengeService;
     private final TutorialService tutorialService;
     private final ProductService productService;
+    private final LotteryService lotteryService;
 
     public GameHandler getGameHandler() {
         return gameHandler;
@@ -509,8 +512,7 @@ public class GamePacketHandler {
                             int existingItemCount = 0;
                             boolean existingItem = false;
 
-                            if (playerPocket != null &&
-                                !playerPocket.getCategory().equals(EItemCategory.PARTS.getName())) {
+                            if (playerPocket != null && !playerPocket.getUseType().equals("N/A")) {
                                 existingItemCount = playerPocket.getItemCount();
                                 existingItem = true;
                             } else {
@@ -802,6 +804,17 @@ public class GamePacketHandler {
         // empty..
     }
 
+    public void handleOpenGachaRequestPacket(Connection connection, Packet packet) {
+        C2SOpenGachaReqPacket openGachaReqPacket = new C2SOpenGachaReqPacket(packet);
+        long playerPocketId = openGachaReqPacket.getPlayerPocketId();
+        int productIndex = openGachaReqPacket.getProductIndex();
+
+        List<PlayerPocket> playerPocketList = lotteryService.drawLottery(connection, playerPocketId, productIndex);
+
+        S2COpenGachaAnswerPacket openGachaAnswerPacket = new S2COpenGachaAnswerPacket(playerPocketList);
+        connection.sendTCP(openGachaAnswerPacket);
+    }
+
     public void handleDisconnectPacket(Connection connection, Packet packet) {
 
         // reset pocket
@@ -831,6 +844,7 @@ public class GamePacketHandler {
         gameHandler.removeClient(connection.getClient());
 
         connection.setClient(null);
+        connection.close();
     }
 
     public void handle1071Packet(Connection connection, Packet packet) {

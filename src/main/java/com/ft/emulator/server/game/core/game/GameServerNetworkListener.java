@@ -6,8 +6,10 @@ import com.ft.emulator.server.networking.Connection;
 import com.ft.emulator.server.networking.ConnectionListener;
 import com.ft.emulator.server.networking.packet.Packet;
 import com.ft.emulator.server.shared.module.Client;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 
+@Log4j2
 public class GameServerNetworkListener implements ConnectionListener {
 
     @Autowired
@@ -150,6 +152,10 @@ public class GameServerNetworkListener implements ConnectionListener {
             gamePacketHandler.handleEmblemListRequestPacket(connection, packet);
             break;
 
+        case PacketID.C2SOpenGachaReq:
+            gamePacketHandler.handleOpenGachaRequestPacket(connection, packet);
+            break;
+
         case PacketID.C2SHeartbeat:
         case PacketID.C2SLoginAliveClient:
             // empty..
@@ -167,5 +173,9 @@ public class GameServerNetworkListener implements ConnectionListener {
 
     public void idle(Connection connection) {
         // empty..
+    }
+
+    public void onException(Connection connection, Exception exception) {
+        log.error(exception.getMessage());
     }
 }

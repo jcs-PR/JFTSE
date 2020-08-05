@@ -69,18 +69,17 @@ public class TutorialService {
             tutorialProgress.setSuccess(tutorialProgress.getSuccess() + 1);
             tutorialProgress.setAttempts(tutorialProgress.getAttempts() + 1);
         }
+        tutorialProgressRepository.save(tutorialProgress);
 
         List<Map<String, Object>> rewardItemList = new ArrayList<>(itemRewardService.prepareRewardItemList(connection.getClient().getActivePlayer(), rewardProductList));
 
         byte level = levelService.getLevel(rewardExp, connection.getClient().getActivePlayer().getExpPoints(), connection.getClient().getActivePlayer().getLevel());
 
         Player player = connection.getClient().getActivePlayer();
-        player.setExpPoints(player.getExpPoints() + tutorial.getRewardExp());
-        player.setGold(player.getGold() + tutorial.getRewardGold());
+        player.setExpPoints(player.getExpPoints() + rewardExp);
+        player.setGold(player.getGold() + rewardGold);
 
         player = levelService.setNewLevelStatusPoints(level, player);
-
-        tutorialProgressRepository.save(tutorialProgress);
 
         connection.getClient().setActivePlayer(player);
 

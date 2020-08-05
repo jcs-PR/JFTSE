@@ -121,6 +121,7 @@ public class TcpConnection {
             socketChannel.configureBlocking(false);
             Socket socket = socketChannel.socket();
             socket.setTcpNoDelay(true);
+            socket.setKeepAlive(true);
 
             selectionKey = socketChannel.register(selector, SelectionKey.OP_READ);
 
@@ -133,7 +134,7 @@ public class TcpConnection {
         }
     }
 
-    public Packet readPacket() throws IOException {
+    public Packet readPacket(Connection connection) throws IOException {
         readBuffer = ByteBuffer.allocate(4096);
         readBuffer.order(ByteOrder.LITTLE_ENDIAN);
 
@@ -149,7 +150,7 @@ public class TcpConnection {
         if (bytesRead == -1)
             throw new SocketException("Connection is closed.");
 
-        if(bytesRead == 0)
+        if (bytesRead == 0)
             return null;
 
         currentObjectLength = BitKit.bytesToShort(readBuffer.array(), 6);
@@ -158,42 +159,34 @@ public class TcpConnection {
         if (currentObjectLength > readBuffer.capacity())
             throw new IOException("Unable to read object larger than read buffer: " + currentObjectLength);
 
-        Packet packet = null;
-        if (currentObjectLength == 0 && bytesRead > 8) {
-            byte[] data = new byte[bytesRead];
+        Packet packet;
+        byte[] data = new byte[bytesRead];
 
-            BitKit.blockCopy(readBuffer.array(), 0, data, 0, bytesRead);
+        BitKit.blockCopy(readBuffer.array(), 0, data, 0, bytesRead);
 
-            while (true) {
-                int packetSize = BitKit.bytesToShort(data, 6);
-                if (packetSize == 0 && packetSize + 8 < data.length) {
+        // a read tcp packet may contain multiple nested packets, so we handle that properly
+        while (true) {
+            int packetSize = BitKit.bytesToShort(data, 6);
+            currentObjectLength = packetSize;
 
-                    byte[] tmp = new byte[data.length - 8];
-                    BitKit.blockCopy(data, packetSize + 8, tmp, 0, tmp.length);
-                    data = new byte[tmp.length];
-                    BitKit.blockCopy(tmp, 0, data, 0, data.length);
-                }
-                else {
-                    break;
-                }
+            if (packetSize + 8 < data.length) {
+                packet = new Packet(data);
+
+                log.info("RECV [" + String.format("0x%x", (int) packet.getPacketId()) + "] " + BitKit.toString(packet.getRawPacket(), 0, packet.getDataLength() + 8));
+
+                connection.notifyReceived(packet);
+
+                byte[] tmp = new byte[data.length - 8 - packetSize];
+                BitKit.blockCopy(data, packetSize + 8, tmp, 0, tmp.length);
+                data = new byte[tmp.length];
+                BitKit.blockCopy(tmp, 0, data, 0, data.length);
             }
-
-            packet = new Packet(data);
+            else {
+                break;
+            }
         }
-        else if ((bytesRead - currentObjectLength - 8) == 10) {
-            byte[] data = new byte[bytesRead];
-
-            BitKit.blockCopy(readBuffer.array(), 12, data, 0, bytesRead);
-
-            packet = new Packet(data);
-        }
-        else {
-            byte[] data = new byte[bytesRead];
-
-            BitKit.blockCopy(readBuffer.array(), 0, data, 0, bytesRead);
-
-            packet = new Packet(data);
-        }
+        packet = new Packet(data);
+        currentObjectLength = 0;
 
         log.info("RECV [" + String.format("0x%x", (int) packet.getPacketId()) + "] " + BitKit.toString(packet.getRawPacket(), 0, packet.getDataLength() + 8));
 
