@@ -130,10 +130,6 @@ public class GamePacketHandler {
             S2CGameServerAnswerPacket gameServerAnswerPacket = new S2CGameServerAnswerPacket(requestType, (byte) 0);
             connection.sendTCP(gameServerAnswerPacket);
 
-            // init data request packets
-            gameServerAnswerPacket = new S2CGameServerAnswerPacket((byte) 1, (byte) 0);
-            connection.sendTCP(gameServerAnswerPacket);
-
             S2CPlayerLevelExpPacket playerLevelExpPacket = new S2CPlayerLevelExpPacket(player.getLevel(), player.getExpPoints());
             connection.sendTCP(playerLevelExpPacket);
 
@@ -144,9 +140,6 @@ public class GamePacketHandler {
         }
         else if (requestType == 1) {
             S2CGameServerAnswerPacket gameServerAnswerPacket = new S2CGameServerAnswerPacket(requestType, (byte) 0);
-            connection.sendTCP(gameServerAnswerPacket);
-
-            gameServerAnswerPacket = new S2CGameServerAnswerPacket((byte) 2, (byte) 0);
             connection.sendTCP(gameServerAnswerPacket);
         }
         // pass inventory & equipped items
@@ -172,9 +165,6 @@ public class GamePacketHandler {
 
             S2CInventoryWearQuickAnswerPacket inventoryWearQuickAnswerPacket = new S2CInventoryWearQuickAnswerPacket(equippedQuickSlots);
             connection.sendTCP(inventoryWearQuickAnswerPacket);
-
-            gameServerAnswerPacket = new S2CGameServerAnswerPacket((byte) (requestType + 1), (byte) 0);
-            connection.sendTCP(gameServerAnswerPacket);
         }
         else {
             S2CGameServerAnswerPacket gameServerAnswerPacket = new S2CGameServerAnswerPacket(requestType, (byte) 0);
@@ -252,7 +242,7 @@ public class GamePacketHandler {
         List<HomeInventory> homeInventoryList = homeService.findAllByAccountHome(accountHome);
 
         homeInventoryList.forEach(hil -> {
-                PlayerPocket playerPocket = playerPocketService.getItemAsPocketByItemIndex(hil.getItemIndex(), connection.getClient().getActivePlayer().getPocket());
+                PlayerPocket playerPocket = playerPocketService.getItemAsPocketByItemIndexAndPocket(hil.getItemIndex(), connection.getClient().getActivePlayer().getPocket());
                 ItemHouseDeco itemHouseDeco = homeService.findItemHouseDecoByItemIndex(hil.getItemIndex());
 
                 // create a new one if null, null indicates that all items are placed
@@ -433,6 +423,12 @@ public class GamePacketHandler {
                 Product product = data.getKey();
                 byte option = data.getValue();
 
+                // prevent user from buying pet till it'simplemented
+                if (product.getCategory().equals(EItemCategory.PET_CHAR.getName())) {
+                    result += product.getPrice0();
+                    continue;
+                }
+
                 if (!product.getCategory().equals(EItemCategory.CHAR.getName())) {
                     if (product.getCategory().equals(EItemCategory.HOUSE.getName())) {
 
@@ -508,7 +504,7 @@ public class GamePacketHandler {
                                 }
                             }
                         } else {
-                            PlayerPocket playerPocket = playerPocketService.getItemAsPocketByItemIndex(product.getItem0(), player.getPocket());
+                            PlayerPocket playerPocket = playerPocketService.getItemAsPocketByItemIndexAndPocket(product.getItem0(), player.getPocket());
                             int existingItemCount = 0;
                             boolean existingItem = false;
 
@@ -847,26 +843,12 @@ public class GamePacketHandler {
         connection.close();
     }
 
-    public void handle1071Packet(Connection connection, Packet packet) {
-        int requestType = packet.readInt();
-
-        if (requestType == 9) {
-            List<ChallengeProgress> challengeProgressList = challengeService.findAllByPlayerIdFetched(connection.getClient().getActivePlayer().getId());
-
-            S2CChallengeProgressAnswerPacket challengeProgressAnswerPacket = new S2CChallengeProgressAnswerPacket(challengeProgressList);
-            connection.sendTCP(challengeProgressAnswerPacket);
-        }
-        // bandage fix for lobby join, since the packet is sent under other packets it's hard to extract every packet out of a recv
-        else if (requestType == 0) {
-            connection.getClient().setInLobby(true);
-        }
-    }
-
     public void handleUnknown(Connection connection, Packet packet) {
         Packet unknownAnswer = new Packet((char) (packet.getPacketId() + 1));
         if (unknownAnswer.getPacketId() == (char) 0x200E) {
             unknownAnswer.write((char) 1);
-        } else {
+        }
+        else {
             unknownAnswer.write((short) 0);
         }
         connection.sendTCP(unknownAnswer);

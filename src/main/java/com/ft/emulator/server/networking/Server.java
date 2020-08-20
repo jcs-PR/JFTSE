@@ -15,7 +15,7 @@ import java.util.*;
 @Log4j2
 public class Server implements Runnable {
     private final int writeBufferSize, objectBufferSize;
-    private final Selector selector;
+    private Selector selector;
     private int emptySelects;
     private ServerSocketChannel serverChannel;
     private List<Connection> connections = Collections.synchronizedList(new ArrayList<>());
@@ -63,6 +63,15 @@ public class Server implements Runnable {
         }
     }
 
+    public void restart() {
+
+        try {
+            selector = Selector.open();
+        } catch (IOException ioe) {
+            throw new RuntimeException("Error opening selector.", ioe);
+        }
+    }
+
     public void bind(int tcpPort) throws IOException {
         bind(new InetSocketAddress("0.0.0.0", tcpPort), null);
     }
@@ -75,6 +84,7 @@ public class Server implements Runnable {
 
             try {
                 serverChannel = selector.provider().openServerSocketChannel();
+                serverChannel.socket().setReuseAddress(true);
                 serverChannel.socket().bind(tcpPort);
                 serverChannel.configureBlocking(false);
                 serverChannel.register(selector, SelectionKey.OP_ACCEPT);
@@ -314,6 +324,7 @@ public class Server implements Runnable {
         for (int i = 0; i < this.connections.size(); i++)
             this.connections.get(i).close();
         this.connections = Collections.synchronizedList(new ArrayList<>());
+        this.nextConnectionID = 1;
 
         ServerSocketChannel serverSocketChannel = this.serverChannel;
 
